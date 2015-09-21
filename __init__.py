@@ -13,6 +13,6 @@
     :license: BSD, see LICENSE for more details.
 """
 
-from .xcamera import XCamera
+from .xcamera import Xcamera
 
-__all__ = ['XCamera', ]
+__all__ = ['Xcamera', ]
