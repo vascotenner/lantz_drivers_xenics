@@ -10,12 +10,12 @@
     --------------------
 
     This wrapper uses the "old" Xcontrol driver.
-    Only tested for linear area CCD under Windows XP
+    Only tested under CCD under Windows XP
 
     ---
 
-    :copyright: 2014 by Lantz Authors, see AUTHORS for more details.
-    :license: BSD, see LICENSE for more details.
+    :copyright: 2015, see AUTHORS for more details.
+    :license: GPL, see LICENSE for more details.
 """
 
 import time
