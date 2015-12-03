@@ -60,28 +60,6 @@ _IGNORE_ERR = ['XC_OpenCamera',
                'XC_CloseCamera'
               ]
 
-def is_running(func):
-    """This decorator checks if the camera is still running"""
-    # argnames = func.func_code.co_varnames[:func.func_code.co_argcount]
-    try:
-        fname = func.__name__
-    except AttributeError:
-        fname = 'Unkown'
-
-    def checker(*args, **kwargs):
-        if args[0].connected:
-            return func(*args, **kwargs)
-        else:
-            args[0].log_info('Camera not running. Not running function %s'
-                             % fname)
-
-            def func2(*args, **kwargs):
-                pass
-
-            return func2
-
-    return checker
-
 
 class Xcamera(LibraryDriver):
     """Xenics Xcontrol Xcamera driver for Xenics CCD cameras
@@ -104,7 +82,6 @@ class Xcamera(LibraryDriver):
         super().__init__(*args, **kwargs)
         self.camera_num = camera_num
         self.config_file = config_file
-        self.connected = False
 
     def _add_types(self):
         self.lib.XC_OpenCamera.argtypes = [ct.c_uint]
@@ -129,7 +106,6 @@ class Xcamera(LibraryDriver):
 
     def initialize(self):
         """ Connect the camera."""
-        self.connected = False
         self.capturing = False
         self.wait = 0.02
 
@@ -140,7 +116,6 @@ class Xcamera(LibraryDriver):
             self.log_critical("Could not connect to camera {}".format(self.camera_num))
         else:
             self.log_debug("Connected. xcamera_id = %d" % self.xcamera_id)
-            self.connected = True
             if self.lib.XC_IsInitialised(self.xcamera_id) == 0:
                 self.log_error("Camera could not be initialized. Retry.")
                 self.finalize()
@@ -156,14 +131,9 @@ class Xcamera(LibraryDriver):
 
     def finalize(self):
         self.log_info("Disconnecting Camera")
-        if self.connected:
-            self.connected = False
-            self.lib.XC_CloseCamera(self.xcamera_id)
-        else:
-            self.log_debug("Already disconnected")
+        self.lib.XC_CloseCamera(self.xcamera_id)
 
     @Action()
-    @is_running
     def __load_config(self):
         if self.config_file:
             if not os.path.exists(self.config_file):
@@ -173,7 +143,6 @@ class Xcamera(LibraryDriver):
                                      self.config_file)
 
     @Action()
-    @is_running
     def __sensor_shape(self):
         """ Read shape of sensor from camera """
         height = self.lib.XC_GetHeight(self.xcamera_id)
@@ -182,7 +151,6 @@ class Xcamera(LibraryDriver):
         self.log_debug("Read camera shape %s" % str(self.shape))
 
     @Action()
-    @is_running
     def __frame_size(self):
         self.frame_size = self.lib.XC_GetFrameSizeInBytes(self.xcamera_id)
         self.log_debug("Read frame size %d" % self.frame_size)
@@ -191,7 +159,6 @@ class Xcamera(LibraryDriver):
                                                 ct.c_uint]
 
     @Feat(values={'low': 3, 'medium': 2, 'high': 1, 'super_high': 0})
-    @is_running
     def gain(self):
         gain = ct.c_double()
         self.lib.XC_GetGainCamera(self.xcamera_id,
@@ -199,14 +166,12 @@ class Xcamera(LibraryDriver):
         return gain.value
 
     @gain.setter
-    @is_running
     def gain(self, gain):
         (self.lib.XC_SetGainCamera(self.xcamera_id,
                                                  gain))
         self.log_debug("Gain set to %d" % gain)
 
     @Feat(units='us')
-    @is_running
     def exposure_time(self):
         us = ct.c_uint()
         (self.lib.XC_GetIntegrationTime(self.xcamera_id,
@@ -215,14 +180,12 @@ class Xcamera(LibraryDriver):
         return us.value
 
     @exposure_time.setter
-    @is_running
     def exposure_time(self, us):
         (self.lib.XC_SetIntegrationTime(self.xcamera_id,
                                                       int(us)))
         self.log_debug("Integration time set to %d us" % us)
 
     @Feat(units='K')
-    @is_running
     def temperature(self):
         temp = ct.c_short()
         (self.lib.XC_GetTemperature(self.xcamera_id,
@@ -230,14 +193,12 @@ class Xcamera(LibraryDriver):
         return temp.value
 
     @temperature.setter
-    @is_running
     def temperature(self, k):
         (self.lib.XC_SetCoolingTemperature(self.xcamera_id,
                                                          k))
         self.log_debug("Temperature set to %d K" % k)
 
     @Feat(values={True: True, False: False})
-    @is_running
     def fan(self):
         fan = ct.c_bool()
         (self.lib.XC_GetFan(self.xcamera_id,
@@ -245,7 +206,6 @@ class Xcamera(LibraryDriver):
         return fan.value
 
     @fan.setter
-    @is_running
     def fan(self, k):
         """ Set fan on (True) """
         (self.lib.XC_SetFan(self.xcamera_id,
@@ -253,13 +213,11 @@ class Xcamera(LibraryDriver):
         self.log_debug("Switch fan %s" % ('on' if k else 'off'))
 
     @Action()
-    @is_running
     def start_capture(self):
         self.lib.XC_StartCapture(self.xcamera_id)
         self.log_debug("Start capture")
 
     @Action()
-    @is_running
     def stop_capture(self):
         self.lib.XC_StopCapture(self.xcamera_id)
         self.log_debug("Stop capture")
@@ -280,7 +238,6 @@ class Xcamera(LibraryDriver):
             self._read_frame()
 
     @Action()
-    @is_running
     def single_frame(self):
         """ Read a single frame
         """
@@ -290,7 +247,6 @@ class Xcamera(LibraryDriver):
         return self.buffer
 
     @Action()
-    @is_running
     def single_shot(self):
         """ Start and stop camera and capture one frame. Takes more than 20ms"""
         self.start_capture()
