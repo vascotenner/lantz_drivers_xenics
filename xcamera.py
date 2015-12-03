@@ -21,6 +21,7 @@
 import time
 import os.path
 import ctypes as ct
+import threading
 
 import numpy as np
 from numpy.ctypeslib import ndpointer
@@ -87,6 +88,7 @@ class Xcamera(LibraryDriver):
     """
     # 'c:/Program Files/X-Control/xcamera.dll'
     LIBRARY_NAME = 'xcamera.dll'
+    readlock = threading.Lock()
 
     def __init__(self, camera_num=0,
                  #config_file='C:\Documents and Settings\MONA\Desktop\\vis\Xlin16BitFvB3.xcf',
@@ -130,7 +132,6 @@ class Xcamera(LibraryDriver):
         self.connected = False
         self.capturing = False
         self.wait = 0.02
-        self._exposure_time = 0
 
         self.log_debug("Connecting to Camera")
 
@@ -152,7 +153,6 @@ class Xcamera(LibraryDriver):
             self.__sensor_shape()
             self.__frame_size()
             self.buffer = np.zeros(shape=self.shape, dtype=np.uint16)
-            self._exposure_time = self.exposure_time.magnitude
 
     def finalize(self):
         self.log_info("Disconnecting Camera")
@@ -217,7 +217,6 @@ class Xcamera(LibraryDriver):
     @exposure_time.setter
     @is_running
     def exposure_time(self, us):
-        self._exposure_time = us
         (self.lib.XC_SetIntegrationTime(self.xcamera_id,
                                                       int(us)))
         self.log_debug("Integration time set to %d us" % us)
@@ -265,22 +264,27 @@ class Xcamera(LibraryDriver):
         self.lib.XC_StopCapture(self.xcamera_id)
         self.log_debug("Stop capture")
 
-    @Action()
-    @is_running
     def _read_frame(self):
         """Copy the buffer from the camera"""
-        (self.lib.XC_CopyFrameBuffer(self.xcamera_id,
-                                                   self.buffer,
-                                                   self.frame_size))
-        self.log_debug("Captured 1 frame")
-        return self.buffer
+        if self.readlock.acquire(blocking=False):
+            # make sure that there is only one read 
+            # at the time, else the driver will freeze
+            (self.lib.XC_CopyFrameBuffer(self.xcamera_id,
+                                                       self.buffer,
+                                                       self.frame_size))
+            self.readlock.release()
+            self.log_debug("Captured 1 frame")
+            return self.buffer
+        else:
+            time.sleep(0.001)
+            self._read_frame()
 
     @Action()
     @is_running
     def single_frame(self):
         """ Read a single frame
         """
-        time.sleep(self._exposure_time*1e-6 + self.wait)
+        time.sleep(self.exposure_time.to('s').magnitude + self.wait)
         time.sleep(0.0002)  # can be very short
         self._read_frame()
         return self.buffer
