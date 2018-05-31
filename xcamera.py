@@ -61,12 +61,15 @@ _IGNORE_ERR = ['XC_OpenCamera',
               ]
 
 
+# Read lock for all devices that uses the same driver
+readlock = threading.Lock()
+
 class Xcamera(LibraryDriver):
     """Xenics Xcontrol Xcamera driver for Xenics CCD cameras
     """
     # 'c:/Program Files/X-Control/xcamera.dll'
     LIBRARY_NAME = 'xcamera.dll'
-    readlock = threading.Lock()
+    readlock = readlock
 
     def __init__(self, camera_num=0,
                  #config_file='C:\Documents and Settings\MONA\Desktop\\vis\Xlin16BitFvB3.xcf',
